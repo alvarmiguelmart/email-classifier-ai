@@ -1,6 +1,6 @@
 # Gradio e dependências (versões estáveis para Hugging Face Spaces)
 transformers==4.37.0
-torch==2.2.0
+torch==2.10.0
 
 # Processamento de arquivos
 PyPDF2==3.0.1
