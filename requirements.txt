@@ -1,5 +1,4 @@
 # Gradio e dependências (versões estáveis para Hugging Face Spaces)
-gradio==4.19.0
 transformers==4.37.0
 torch==2.2.0
 
