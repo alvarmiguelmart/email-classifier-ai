@@ -1,4 +1,16 @@
-# Email Classifier AI
+---
+title: Email Classifier AI
+emoji: 📧
+colorFrom: blue
+colorTo: purple
+sdk: gradio
+app_file: app.py
+pinned: false
+license: mit
+sdk_version: 6.9.0
+---
+
+# Email Classifier AI 📧
 
 Sistema inteligente de classificação automática de emails utilizando **DistilBERT** - um modelo de NLP leve, rápido e 100% gratuito.
 
