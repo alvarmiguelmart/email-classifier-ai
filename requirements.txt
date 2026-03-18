@@ -1,5 +1,6 @@
-# Gradio e dependências (versões estáveis para Hugging Face Spaces)
-gradio==4.19.0
+# Dependências Python (Gradio é instalado automaticamente pelo Hugging Face Spaces)
+
+# NLP - Modelo DistilBERT
 transformers==4.37.0
 torch==2.2.0
 

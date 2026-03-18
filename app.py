@@ -1,6 +1,7 @@
 """
 Email Classifier AI - Aplicação Gradio para Hugging Face Spaces
 Modelo: DistilBERT (66M parâmetros) - Leve e Gratuito
+Compatible with: Gradio 6.x
 """
 
 import gradio as gr
@@ -9,28 +10,27 @@ import PyPDF2
 import docx
 import io
 import re
+import os
 from typing import Dict, Tuple
 
 # Inicializar modelo global (será carregado uma vez)
-_model = None
-_tokenizer = None
 _classifier = None
 
 def get_classifier():
     """Inicializa o modelo DistilBERT (lazy loading)"""
-    global _model, _tokenizer, _classifier
+    global _classifier
 
     if _classifier is None:
         print("🚀 Carregando modelo DistilBERT...")
         model_name = "distilbert-base-uncased-finetuned-sst-2-english"
 
-        _tokenizer = AutoTokenizer.from_pretrained(model_name)
-        _model = AutoModelForSequenceClassification.from_pretrained(model_name)
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        model = AutoModelForSequenceClassification.from_pretrained(model_name)
 
         _classifier = pipeline(
             "text-classification",
-            model=_model,
-            tokenizer=_tokenizer,
+            model=model,
+            tokenizer=tokenizer,
             device=-1  # CPU
         )
         print("✅ Modelo carregado com sucesso!")
@@ -56,29 +56,43 @@ keywords_improdutivas = [
     "felicitações", "sucesso", "feliz aniversário", "ótimo"
 ]
 
-def extract_text_from_pdf(file_content: bytes) -> str:
+def extract_text_from_pdf(file_path: str) -> str:
     """Extrai texto de PDF"""
     try:
-        pdf_file = io.BytesIO(file_content)
-        pdf_reader = PyPDF2.PdfReader(pdf_file)
-        text = ""
-        for page in pdf_reader.pages:
-            text += page.extract_text() + "\n"
+        with open(file_path, 'rb') as f:
+            pdf_reader = PyPDF2.PdfReader(f)
+            text = ""
+            for page in pdf_reader.pages:
+                text += page.extract_text() + "\n"
         return text.strip()
     except Exception as e:
         return f"Erro ao ler PDF: {str(e)}"
 
-def extract_text_from_docx(file_content: bytes) -> str:
+def extract_text_from_docx(file_path: str) -> str:
     """Extrai texto de DOCX"""
     try:
-        doc_file = io.BytesIO(file_content)
-        doc = docx.Document(doc_file)
+        doc = docx.Document(file_path)
         text = ""
         for para in doc.paragraphs:
             text += para.text + "\n"
         return text.strip()
     except Exception as e:
         return f"Erro ao ler DOCX: {str(e)}"
+
+def extract_text_from_txt(file_path: str) -> str:
+    """Extrai texto de TXT"""
+    try:
+        # Tentar diferentes encodings
+        encodings = ['utf-8', 'latin-1', 'iso-8859-1', 'cp1252']
+        for encoding in encodings:
+            try:
+                with open(file_path, 'r', encoding=encoding) as f:
+                    return f.read().strip()
+            except UnicodeDecodeError:
+                continue
+        return "Erro: Não foi possível decodificar o arquivo TXT"
+    except Exception as e:
+        return f"Erro ao ler TXT: {str(e)}"
 
 def preprocess_text(text: str) -> str:
     """Pré-processamento do texto"""
@@ -129,6 +143,7 @@ def classify_email(email_text: str) -> Dict:
             bert_confidence = result_bert['score']
 
     except Exception as e:
+        print(f"Erro BERT: {e}")
         bert_category = "neutro"
         bert_confidence = 0.0
 
@@ -230,43 +245,60 @@ def process_email(email_text: str) -> str:
     if not email_text or len(email_text.strip()) < 10:
         return "⚠️ Por favor, insira um texto de email válido (mínimo 10 caracteres)."
 
-    classification = classify_email(email_text)
-    return generate_response(classification, email_text)
+    try:
+        classification = classify_email(email_text)
+        return generate_response(classification, email_text)
+    except Exception as e:
+        return f"❌ Erro ao processar: {str(e)}"
 
 def process_file(file_obj) -> str:
-    """Processa arquivo enviado"""
+    """Processa arquivo enviado - CORRIGIDO para Gradio 6.x"""
     if file_obj is None:
         return "⚠️ Por favor, selecione um arquivo."
 
     try:
-        # file_obj é um objeto tempfile quando upload via Gradio
-        if hasattr(file_obj, 'read'):
-            content = file_obj.read()
-            if hasattr(file_obj, 'name'):
-                filename = file_obj.name
-            else:
-                filename = "upload.txt"
-        else:
-            return "⚠️ Erro ao ler arquivo."
+        # No Gradio 6.x, file_obj pode ser:
+        # 1. Um path (str) para arquivo temporário
+        # 2. Um objeto file-like com atributo .name
 
-        # Extrair texto baseado na extensão
-        if filename.endswith('.pdf'):
-            text = extract_text_from_pdf(content if isinstance(content, bytes) else content.encode())
-        elif filename.endswith('.docx'):
-            text = extract_text_from_docx(content if isinstance(content, bytes) else content.encode())
-        elif filename.endswith('.txt'):
-            text = content.decode('utf-8') if isinstance(content, bytes) else content
+        file_path = None
+
+        if isinstance(file_obj, str):
+            # É um path direto
+            file_path = file_obj
+        elif hasattr(file_obj, 'name'):
+            # É um objeto file-like
+            file_path = file_obj.name
+        else:
+            return f"⚠️ Tipo de arquivo não reconhecido: {type(file_obj)}"
+
+        if not file_path or not os.path.exists(file_path):
+            return "⚠️ Arquivo não encontrado ou caminho inválido."
+
+        # Detectar extensão
+        file_lower = file_path.lower()
+
+        if file_lower.endswith('.pdf'):
+            text = extract_text_from_pdf(file_path)
+        elif file_lower.endswith('.docx'):
+            text = extract_text_from_docx(file_path)
+        elif file_lower.endswith('.txt'):
+            text = extract_text_from_txt(file_path)
         else:
             return "⚠️ Formato não suportado. Use .txt, .pdf ou .docx"
 
-        if text.startswith("Erro ao ler"):
+        if text.startswith("Erro"):
             return f"❌ {text}"
+
+        if not text or len(text.strip()) < 10:
+            return "⚠️ Arquivo parece estar vazio ou não contém texto suficiente."
 
         classification = classify_email(text)
         return generate_response(classification, text)
 
     except Exception as e:
-        return f"❌ Erro ao processar arquivo: {str(e)}"
+        import traceback
+        return f"❌ Erro ao processar arquivo: {str(e)}\n\nDetalhes: {traceback.format_exc()}"
 
 # Criar interface Gradio
 demo = gr.Blocks(theme=gr.themes.Soft())
