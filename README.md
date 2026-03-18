@@ -18,8 +18,8 @@ Sistema inteligente de classificação automática de emails utilizando **Distil
 
 - **Classificação Automática**: Categoriza emails como "Produtivo" ou "Improdutivo"
 - **Respostas Automáticas**: Sugere respostas personalizadas baseadas na classificação
+- **Upload de Arquivos**: Suporta .txt, .pdf e .docx
 - **Modelo Local**: DistilBERT (66M parâmetros) - privado e gratuito
-- **Interface Web**: Design moderno e responsivo
 
 ## 🤖 Tecnologia
 
@@ -30,9 +30,9 @@ Sistema inteligente de classificação automática de emails utilizando **Distil
 
 ## 🚀 Como Usar
 
-1. Digite o texto do email na caixa de texto
+1. Digite o texto do email na aba "Digitar Texto" ou faça upload de um arquivo na aba "Anexar Arquivo"
 2. Clique em "Classificar Email"
-3. Veja a classificação e a resposta sugerida
+3. Veja a classificação e a resposta sugerida automaticamente
 
 ## 📊 Exemplos para Testar
 

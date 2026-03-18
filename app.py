@@ -1,179 +1,323 @@
 """
-Email Classifier AI - Aplicação Web com FastAPI
+Email Classifier AI - Aplicação Gradio para Hugging Face Spaces
 Modelo: DistilBERT (66M parâmetros) - Leve e Gratuito
-Hospedagem: Hugging Face Spaces (Gratuito)
 """
 
-from fastapi import FastAPI, File, UploadFile, Form, Request
-from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
-import uvicorn
-import os
+import gradio as gr
+from transformers import AutoTokenizer, AutoModelForSequenceClassification, pipeline
+import PyPDF2
+import docx
 import io
+import re
+from typing import Dict, Tuple
 
-from model import get_classifier
+# Inicializar modelo global (será carregado uma vez)
+_model = None
+_tokenizer = None
+_classifier = None
 
-# Inicializar aplicação
-app = FastAPI(
-    title="Email Classifier AI",
-    description="Classificação automática de emails usando DistilBERT",
-    version="1.0.0"
-)
+def get_classifier():
+    """Inicializa o modelo DistilBERT (lazy loading)"""
+    global _model, _tokenizer, _classifier
 
-# Configurar templates e arquivos estáticos
-templates = Jinja2Templates(directory="templates")
+    if _classifier is None:
+        print("🚀 Carregando modelo DistilBERT...")
+        model_name = "distilbert-base-uncased-finetuned-sst-2-english"
 
-# Inicializar modelo (lazy loading)
-classifier = None
+        _tokenizer = AutoTokenizer.from_pretrained(model_name)
+        _model = AutoModelForSequenceClassification.from_pretrained(model_name)
 
-def get_model():
-    global classifier
-    if classifier is None:
-        classifier = get_classifier()
-    return classifier
+        _classifier = pipeline(
+            "text-classification",
+            model=_model,
+            tokenizer=_tokenizer,
+            device=-1  # CPU
+        )
+        print("✅ Modelo carregado com sucesso!")
 
-@app.on_event("startup")
-async def startup_event():
-    """Pré-carregar modelo na inicialização"""
-    print("🚀 Inicializando Email Classifier...")
-    get_model()
-    print("✅ Modelo DistilBERT carregado com sucesso!")
+    return _classifier
 
-@app.get("/", response_class=HTMLResponse)
-async def index(request: Request):
-    """Página principal com interface web"""
-    return templates.TemplateResponse("index.html", {"request": request})
+# Palavras-chave para análise complementar
+keywords_produtivas = [
+    "solicitação", "problema", "erro", "bug", "ajuda", "suporte",
+    "urgente", "reclamação", "reclamar", "status", "andamento",
+    "caso", "protocolo", "atendimento", "dúvida", "dúvidas",
+    "não consigo", "falha", "corrigir", "resolver", "pendente",
+    "cancelar", "alterar", "atualizar", "modificar", "sistema",
+    "acesso", "senha", "login", "bloqueado", "chargeback",
+    "fatura", "boleto", "pagamento", "atrasado", "juros", "contestação"
+]
 
-@app.post("/classify")
-async def classify_email(
-    text: str = Form(None),
-    file: UploadFile = File(None)
-):
-    """
-    Endpoint para classificar email via texto ou arquivo
-    """
+keywords_improdutivas = [
+    "feliz natal", "feliz ano novo", "obrigado", "agradeço",
+    "parabéns", "bom dia", "boa tarde", "boa noite",
+    "ótimo trabalho", "excelente", "maravilhoso", "perfeito",
+    "satisfação", "grato", "agradecido", "abraço", "cumprimentos",
+    "felicitações", "sucesso", "feliz aniversário", "ótimo"
+]
+
+def extract_text_from_pdf(file_content: bytes) -> str:
+    """Extrai texto de PDF"""
     try:
-        email_text = ""
+        pdf_file = io.BytesIO(file_content)
+        pdf_reader = PyPDF2.PdfReader(pdf_file)
+        text = ""
+        for page in pdf_reader.pages:
+            text += page.extract_text() + "\n"
+        return text.strip()
+    except Exception as e:
+        return f"Erro ao ler PDF: {str(e)}"
 
-        # Processar arquivo se enviado
-        if file and file.filename:
-            content = await file.read()
+def extract_text_from_docx(file_content: bytes) -> str:
+    """Extrai texto de DOCX"""
+    try:
+        doc_file = io.BytesIO(file_content)
+        doc = docx.Document(doc_file)
+        text = ""
+        for para in doc.paragraphs:
+            text += para.text + "\n"
+        return text.strip()
+    except Exception as e:
+        return f"Erro ao ler DOCX: {str(e)}"
 
-            if file.filename.endswith('.pdf'):
-                email_text = get_model().extract_text_from_pdf(content)
-            elif file.filename.endswith('.docx'):
-                email_text = get_model().extract_text_from_docx(content)
-            elif file.filename.endswith('.txt'):
-                email_text = content.decode('utf-8')
-            else:
-                return JSONResponse(
-                    status_code=400,
-                    content={"error": "Formato de arquivo não suportado. Use .txt, .pdf ou .docx"}
-                )
+def preprocess_text(text: str) -> str:
+    """Pré-processamento do texto"""
+    text = re.sub(r'\s+', ' ', text)
+    text = re.sub(r'[^\w\s@.-]', ' ', text)
+    return text.strip().lower()
 
-        # Usar texto direto se fornecido
-        elif text:
-            email_text = text
+def keyword_analysis(text: str) -> Tuple[str, float]:
+    """Análise por palavras-chave"""
+    text_lower = text.lower()
 
+    score_prod = sum(1 for kw in keywords_produtivas if kw in text_lower)
+    score_improd = sum(1 for kw in keywords_improdutivas if kw in text_lower)
+
+    if score_prod > score_improd:
+        return "produtivo", min(score_prod / 3, 0.9)
+    elif score_improd > score_prod:
+        return "improdutivo", min(score_improd / 2, 0.9)
+    else:
+        return "neutro", 0.5
+
+def classify_email(email_text: str) -> Dict:
+    """Classifica o email usando DistilBERT + keywords"""
+    if not email_text or len(email_text.strip()) < 10:
+        return {
+            "categoria": "improdutivo",
+            "confianca": 0.5,
+            "motivo": "Texto muito curto ou vazio",
+            "metodo": "fallback"
+        }
+
+    processed_text = preprocess_text(email_text)
+
+    # Classificação BERT
+    try:
+        classifier = get_classifier()
+        result_bert = classifier(
+            processed_text[:1000],
+            truncation=True,
+            max_length=512
+        )[0]
+
+        if result_bert['label'] == 'POSITIVE':
+            bert_category = "improdutivo"
+            bert_confidence = result_bert['score']
         else:
-            return JSONResponse(
-                status_code=400,
-                content={"error": "Por favor, forneça um texto ou arquivo para classificar"}
-            )
-
-        # Classificar
-        classification = get_model().classify(email_text)
-        response_data = get_model().generate_response(classification, email_text)
-
-        return JSONResponse(content={
-            "success": True,
-            "email_preview": email_text[:200] + "..." if len(email_text) > 200 else email_text,
-            "classificacao": response_data["categoria"],
-            "label": response_data["label"],
-            "icone": response_data["icone"],
-            "cor": response_data["cor"],
-            "confianca": response_data["confianca"],
-            "motivo": response_data["motivo"],
-            "resposta_sugerida": response_data["resposta_sugerida"],
-            "resposta_html": response_data["resposta_html"],
-            "detalhes_tecnicos": response_data["detalhes_tecnicos"]
-        })
+            bert_category = "produtivo"
+            bert_confidence = result_bert['score']
 
     except Exception as e:
-        return JSONResponse(
-            status_code=500,
-            content={"error": f"Erro ao processar: {str(e)}"}
-        )
+        bert_category = "neutro"
+        bert_confidence = 0.0
 
-@app.get("/health")
-async def health_check():
-    """Endpoint de health check"""
-    return {"status": "ok", "model": "distilbert-base-uncased-finetuned-sst-2-english"}
+    # Análise keywords
+    kw_category, kw_confidence = keyword_analysis(processed_text)
 
-# Para Hugging Face Spaces - usar Gradio interface
-import gradio as gr
+    # Ensemble
+    if bert_category == kw_category and bert_category != "neutro":
+        final_category = bert_category
+        final_confidence = min((bert_confidence + kw_confidence) / 2 + 0.1, 0.95)
+        metodo = "ensemble_concordante"
+    elif kw_category != "neutro" and bert_category == "neutro":
+        final_category = kw_category
+        final_confidence = kw_confidence * 0.8
+        metodo = "keywords_only"
+    else:
+        final_category = bert_category if bert_confidence > 0.6 else kw_category
+        final_confidence = bert_confidence * 0.8
+        metodo = "bert_prioritario"
 
-def classify_gradio(email_text):
-    """Função wrapper para interface Gradio"""
+    if final_category == "produtivo":
+        motivo = "Detectado conteúdo que requer ação: solicitação de suporte, dúvida técnica ou questão pendente."
+    else:
+        motivo = "Detectado conteúdo de relacionamento: agradecimento, cumprimento ou mensagem de cortesia."
+
+    return {
+        "categoria": final_category,
+        "confianca": round(final_confidence, 3),
+        "motivo": motivo,
+        "detalhes": {
+            "bert_pred": bert_category,
+            "bert_conf": round(bert_confidence, 3),
+            "kw_pred": kw_category,
+            "kw_conf": round(kw_confidence, 3),
+            "metodo": metodo
+        }
+    }
+
+def generate_response(classification: Dict, email_text: str = "") -> str:
+    """Gera resposta formatada em Markdown"""
+
+    templates = {
+        "produtivo": {
+            "icone": "📋",
+            "label": "PRODUTIVO - Requer Ação",
+            "cor": "🔵",
+            "saudacao": "Prezado(a) cliente,",
+            "corpo": "Agradecemos seu contato. Recebemos sua solicitação e nossa equipe está analisando seu caso. Retornaremos em até 24 horas úteis com uma resposta completa.",
+            "assinatura": "Atenciosamente,\nEquipe de Atendimento"
+        },
+        "improdutivo": {
+            "icone": "✨",
+            "label": "IMPRODUTIVO - Agradecimento",
+            "cor": "🟢",
+            "saudacao": "Olá!",
+            "corpo": "Agradecemos sua mensagem! Ficamos felizes com seu contato. Caso precise de assistência técnica ou tenha alguma dúvida sobre nossos serviços, estamos à disposição.",
+            "assinatura": "Um abraço,\nEquipe de Relacionamento"
+        }
+    }
+
+    cat = classification["categoria"]
+    template = templates[cat]
+
+    # Personalização simples
+    corpo = template["corpo"]
+    if cat == "produtivo":
+        if any(word in email_text.lower() for word in ["urgente", "emergência", "crítico"]):
+            corpo = "Agradecemos seu contato. Identificamos a urgência em sua solicitação e nossa equipe está priorizando seu caso. Retornaremos em até 4 horas úteis."
+        elif any(word in email_text.lower() for word in ["senha", "acesso", "login", "bloqueado"]):
+            corpo = "Agradecemos seu contato sobre questões de acesso. Nossa equipe de suporte técnico está verificando sua situação e enviará instruções de recuperação em breve."
+
+    resposta = f"{template['saudacao']}\n\n{corpo}\n\n{template['assinatura']}"
+
+    output = f"""
+## {template['icone']} {template['label']}
+
+**Confiança da IA:** {classification['confianca']*100:.1f}%
+
+**Motivo:** {classification['motivo']}
+
+---
+
+### 💡 Resposta Automática Sugerida:
+
+{resposta}
+
+---
+
+**🔧 Detalhes Técnicos:**
+- Método: {classification['detalhes']['metodo']}
+- Predição BERT: {classification['detalhes']['bert_pred']} ({classification['detalhes']['bert_conf']*100:.1f}%)
+- Predição Keywords: {classification['detalhes']['kw_pred']} ({classification['detalhes']['kw_conf']*100:.1f}%)
+    """
+
+    return output
+
+def process_email(email_text: str) -> str:
+    """Função principal para interface Gradio"""
     if not email_text or len(email_text.strip()) < 10:
         return "⚠️ Por favor, insira um texto de email válido (mínimo 10 caracteres)."
 
-    classification = get_model().classify(email_text)
-    response_data = get_model().generate_response(classification, email_text)
+    classification = classify_email(email_text)
+    return generate_response(classification, email_text)
 
-    # Formatar saída
-    output = f"""
-## {response_data['icone']} {response_data['label']}
+def process_file(file_obj) -> str:
+    """Processa arquivo enviado"""
+    if file_obj is None:
+        return "⚠️ Por favor, selecione um arquivo."
 
-**Confiança:** {response_data['confianca']*100:.1f}%
+    try:
+        # file_obj é um objeto tempfile quando upload via Gradio
+        if hasattr(file_obj, 'read'):
+            content = file_obj.read()
+            if hasattr(file_obj, 'name'):
+                filename = file_obj.name
+            else:
+                filename = "upload.txt"
+        else:
+            return "⚠️ Erro ao ler arquivo."
 
-**Motivo:** {response_data['motivo']}
+        # Extrair texto baseado na extensão
+        if filename.endswith('.pdf'):
+            text = extract_text_from_pdf(content if isinstance(content, bytes) else content.encode())
+        elif filename.endswith('.docx'):
+            text = extract_text_from_docx(content if isinstance(content, bytes) else content.encode())
+        elif filename.endswith('.txt'):
+            text = content.decode('utf-8') if isinstance(content, bytes) else content
+        else:
+            return "⚠️ Formato não suportado. Use .txt, .pdf ou .docx"
 
----
+        if text.startswith("Erro ao ler"):
+            return f"❌ {text}"
 
-### 📝 Resposta Automática Sugerida:
+        classification = classify_email(text)
+        return generate_response(classification, text)
 
-{response_data['resposta_html']}
+    except Exception as e:
+        return f"❌ Erro ao processar arquivo: {str(e)}"
 
----
+# Criar interface Gradio
+demo = gr.Blocks(theme=gr.themes.Soft())
 
-**Detalhes Técnicos:**
-- Método: {response_data['detalhes_tecnicos'].get('metodo', 'N/A')}
-- Predição BERT: {response_data['detalhes_tecnicos'].get('bert_pred', 'N/A')} ({response_data['detalhes_tecnicos'].get('bert_conf', 0)*100:.1f}%)
-- Predição Keywords: {response_data['detalhes_tecnicos'].get('kw_pred', 'N/A')} ({response_data['detalhes_tecnicos'].get('kw_conf', 0)*100:.1f}%)
-    """
-    return output
+with demo:
+    gr.Markdown("""
+    # 📧 Email Classifier AI
 
-# Criar interface Gradio para Hugging Face Spaces
-demo = gr.Interface(
-    fn=classify_gradio,
-    inputs=gr.Textbox(
-        label="📧 Cole o texto do email aqui",
-        placeholder="Ex: Olá, gostaria de saber o status do meu pedido #12345...",
-        lines=10
-    ),
-    outputs=gr.Markdown(label="📊 Resultado da Classificação"),
-    title="📧 Email Classifier AI",
-    description="""
-    **Classificação automática de emails usando Inteligência Artificial**
+    **Classificação inteligente de emails com Inteligência Artificial**
 
     Este sistema utiliza o modelo **DistilBERT** (66M parâmetros) para classificar emails em:
     - 📋 **Produtivo**: Requer ação ou resposta específica
     - ✨ **Improdutivo**: Mensagens de cortesia, agradecimentos
 
     *Gratuito, leve e privado - seus dados não saem deste servidor*
-    """,
-    examples=[
-        ["Olá, gostaria de saber o status do meu pedido #12345. Está pendente há 3 dias e preciso urgente da entrega."],
-        ["Prezados, agradeço muito a atenção e o excelente atendimento prestado. Feliz Natal a todos!"],
-        ["Não consigo acessar minha conta. O sistema diz senha incorreta mas tenho certeza que está certa. Preciso de ajuda urgente!"],
-        ["Parabéns pelo trabalho excelente no projeto! Ficou perfeito. Abraços, João"]
-    ],
-    theme=gr.themes.Soft()
-)
+    """)
 
-# Para execução local
+    with gr.Tabs():
+        with gr.TabItem("📝 Digitar Texto"):
+            input_text = gr.Textbox(
+                label="Cole o texto do email aqui",
+                placeholder="Ex: Olá, gostaria de saber o status do meu pedido #12345...",
+                lines=10
+            )
+            btn_text = gr.Button("🔍 Classificar Email", variant="primary")
+            output_text = gr.Markdown(label="Resultado")
+
+            btn_text.click(fn=process_email, inputs=input_text, outputs=output_text)
+
+        with gr.TabItem("📎 Anexar Arquivo"):
+            input_file = gr.File(
+                label="Selecione um arquivo (.txt, .pdf, .docx)",
+                file_types=[".txt", ".pdf", ".docx"]
+            )
+            btn_file = gr.Button("🔍 Classificar Arquivo", variant="primary")
+            output_file = gr.Markdown(label="Resultado")
+
+            btn_file.click(fn=process_file, inputs=input_file, outputs=output_file)
+
+    gr.Markdown("""
+    ---
+    ### 📊 Exemplos para testar:
+
+    **Produtivo:** "Olá, gostaria de saber o status do meu pedido #12345. Está pendente há 3 dias."
+
+    **Improdutivo:** "Obrigado pelo excelente atendimento! Feliz Natal a todos!"
+
+    ---
+    🤖 Powered by DistilBERT • Hospedado gratuitamente em Hugging Face Spaces
+    """)
+
+# Launch
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 7860))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    demo.launch()
