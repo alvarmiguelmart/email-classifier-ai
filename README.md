@@ -14,6 +14,8 @@ sdk_version: 6.9.0
 
 Sistema inteligente de classificação automática de emails utilizando **DistilBERT** - um modelo de NLP leve, rápido e 100% gratuito.
 
+> Acesse: **https://huggingface.co/spaces/alvarmiguelmart/email-classifier-ai**
+
 ## Funcionalidades
 
 - **Classificação Automática**: Categoriza emails como "Produtivo" ou "Improdutivo"
