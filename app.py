@@ -240,21 +240,22 @@ def generate_response(classification: Dict, email_text: str = "") -> str:
 
     return output
 
-def process_email(email_text: str) -> str:
-    """Função principal para interface Gradio"""
+def process_email(email_text: str) -> Tuple[str, str]:
+    """Função principal para interface Gradio - retorna conteúdo e resultado"""
     if not email_text or len(email_text.strip()) < 10:
-        return "⚠️ Por favor, insira um texto de email válido (mínimo 10 caracteres)."
+        return email_text, "⚠️ Por favor, insira um texto de email válido (mínimo 10 caracteres)."
 
     try:
         classification = classify_email(email_text)
-        return generate_response(classification, email_text)
+        result = generate_response(classification, email_text)
+        return email_text, result
     except Exception as e:
-        return f"❌ Erro ao processar: {str(e)}"
+        return email_text, f"❌ Erro ao processar: {str(e)}"
 
-def process_file(file_obj) -> str:
-    """Processa arquivo enviado - CORRIGIDO para Gradio 6.x"""
+def process_file(file_obj) -> Tuple[str, str]:
+    """Processa arquivo enviado - retorna conteúdo extraído e resultado"""
     if file_obj is None:
-        return "⚠️ Por favor, selecione um arquivo."
+        return "", "⚠️ Por favor, selecione um arquivo."
 
     try:
         # No Gradio 6.x, file_obj pode ser:
@@ -270,10 +271,10 @@ def process_file(file_obj) -> str:
             # É um objeto file-like
             file_path = file_obj.name
         else:
-            return f"⚠️ Tipo de arquivo não reconhecido: {type(file_obj)}"
+            return "", f"⚠️ Tipo de arquivo não reconhecido: {type(file_obj)}"
 
         if not file_path or not os.path.exists(file_path):
-            return "⚠️ Arquivo não encontrado ou caminho inválido."
+            return "", "⚠️ Arquivo não encontrado ou caminho inválido."
 
         # Detectar extensão
         file_lower = file_path.lower()
@@ -285,20 +286,21 @@ def process_file(file_obj) -> str:
         elif file_lower.endswith('.txt'):
             text = extract_text_from_txt(file_path)
         else:
-            return "⚠️ Formato não suportado. Use .txt, .pdf ou .docx"
+            return "", "⚠️ Formato não suportado. Use .txt, .pdf ou .docx"
 
         if text.startswith("Erro"):
-            return f"❌ {text}"
+            return text, f"❌ {text}"
 
         if not text or len(text.strip()) < 10:
-            return "⚠️ Arquivo parece estar vazio ou não contém texto suficiente."
+            return text, "⚠️ Arquivo parece estar vazio ou não contém texto suficiente."
 
         classification = classify_email(text)
-        return generate_response(classification, text)
+        result = generate_response(classification, text)
+        return text, result
 
     except Exception as e:
         import traceback
-        return f"❌ Erro ao processar arquivo: {str(e)}\n\nDetalhes: {traceback.format_exc()}"
+        return "", f"❌ Erro ao processar arquivo: {str(e)}\n\nDetalhes: {traceback.format_exc()}"
 
 # Criar interface Gradio
 demo = gr.Blocks(theme=gr.themes.Soft())
@@ -318,25 +320,55 @@ with demo:
 
     with gr.Tabs():
         with gr.TabItem("📝 Digitar Texto"):
-            input_text = gr.Textbox(
-                label="Cole o texto do email aqui",
-                placeholder="Ex: Olá, gostaria de saber o status do meu pedido #12345...",
-                lines=10
-            )
-            btn_text = gr.Button("🔍 Classificar Email", variant="primary")
-            output_text = gr.Markdown(label="Resultado")
+            with gr.Row():
+                with gr.Column(scale=1):
+                    input_text = gr.Textbox(
+                        label="📥 Cole o texto do email aqui",
+                        placeholder="Ex: Olá, gostaria de saber o status do meu pedido #12345...",
+                        lines=12
+                    )
+                    btn_text = gr.Button("🔍 Classificar Email", variant="primary")
 
-            btn_text.click(fn=process_email, inputs=input_text, outputs=output_text)
+                with gr.Column(scale=1):
+                    # Mostrar o conteúdo processado
+                    content_preview_text = gr.Textbox(
+                        label="📄 Conteúdo Recebido",
+                        placeholder="O conteúdo do email aparecerá aqui...",
+                        lines=8,
+                        interactive=False
+                    )
+                    output_text = gr.Markdown(label="📊 Resultado da Classificação")
+
+            btn_text.click(
+                fn=process_email, 
+                inputs=input_text, 
+                outputs=[content_preview_text, output_text]
+            )
 
         with gr.TabItem("📎 Anexar Arquivo"):
-            input_file = gr.File(
-                label="Selecione um arquivo (.txt, .pdf, .docx)",
-                file_types=[".txt", ".pdf", ".docx"]
-            )
-            btn_file = gr.Button("🔍 Classificar Arquivo", variant="primary")
-            output_file = gr.Markdown(label="Resultado")
+            with gr.Row():
+                with gr.Column(scale=1):
+                    input_file = gr.File(
+                        label="📁 Selecione um arquivo (.txt, .pdf, .docx)",
+                        file_types=[".txt", ".pdf", ".docx"]
+                    )
+                    btn_file = gr.Button("🔍 Classificar Arquivo", variant="primary")
 
-            btn_file.click(fn=process_file, inputs=input_file, outputs=output_file)
+                with gr.Column(scale=1):
+                    # Mostrar o conteúdo extraído
+                    content_preview_file = gr.Textbox(
+                        label="📄 Conteúdo Extraído do Arquivo",
+                        placeholder="O conteúdo extraído aparecerá aqui...",
+                        lines=8,
+                        interactive=False
+                    )
+                    output_file = gr.Markdown(label="📊 Resultado da Classificação")
+
+            btn_file.click(
+                fn=process_file, 
+                inputs=input_file, 
+                outputs=[content_preview_file, output_file]
+            )
 
     gr.Markdown("""
     ---
