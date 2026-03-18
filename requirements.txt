@@ -1,8 +1,12 @@
+<<<<<<< HEAD
 # Dependências Python (Gradio é instalado automaticamente pelo Hugging Face Spaces)
 
 # NLP - Modelo DistilBERT
+=======
+# Gradio e dependências (versões estáveis para Hugging Face Spaces)
+>>>>>>> 30a0789767896fe62a6d5267cdbffee9e19fcd6d
 transformers==4.37.0
-torch==2.2.0
+torch==2.10.0
 
 # Processamento de arquivos
 PyPDF2==3.0.1
