@@ -1,0 +1,17 @@
+# Backend
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+python-multipart==0.0.6
+
+# NLP - Modelo Local Leve (DistilBERT - 66M parâmetros)
+transformers==4.37.0
+torch==2.2.0
+sentencepiece==0.1.99
+
+# Processamento de PDF e texto
+PyPDF2==3.0.1
+python-docx==1.1.0
+
+# Utilitários
+numpy==1.26.3
+scikit-learn==1.4.0

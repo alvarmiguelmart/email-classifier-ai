@@ -1,0 +1,80 @@
+# Exemplos de Emails para Testar o Classificador
+
+## Emails Produtivos (requerem ação)
+
+1. Solicitação de status:
+"""
+Prezados,
+
+Gostaria de saber o status do meu pedido #12345. Realizei a compra há 5 dias e o status ainda consta como "em processamento". Preciso urgente desta entrega para uma reunião importante na próxima segunda-feira.
+
+Aguardo retorno.
+
+Atenciosamente,
+João Silva
+"""
+
+2. Problema técnico:
+"""
+Olá,
+
+Estou tentando acessar o sistema desde ontem e aparece a mensagem "Erro 500 - Internal Server Error". Já limpei o cache do navegador e tentei em outros dispositivos, mas o problema persiste.
+
+Meu usuário é joao.silva@empresa.com
+
+Preciso de ajuda urgente pois tenho relatórios pendentes para entregar.
+
+Obrigado
+"""
+
+3. Dúvida sobre fatura:
+"""
+Boa tarde,
+
+Recebi a fatura deste mês e identifiquei cobranças indevidas referentes a serviços que não contratei. O valor cobrado foi de R$ 299,00 a mais que o habitual.
+
+Gostaria de contestar estas cobranças antes do vencimento que é dia 25/03.
+
+Protocolo de atendimento anterior: #987654
+
+Att,
+Maria Oliveira
+"""
+
+## Emails Improdutivos (agradecimentos/cumprimentos)
+
+1. Agradecimento:
+"""
+Olá equipe,
+
+Gostaria de agradecer o excelente atendimento prestado pelo consultor Pedro durante minha visita ontem. Ele foi muito atencioso e resolveu todas as minhas dúvidas.
+
+Fiquei muito satisfeito com o serviço!
+
+Um abraço,
+Carlos Mendes
+"""
+
+2. Felicitações de fim de ano:
+"""
+Prezados colegas,
+
+Passando para desejar um Feliz Natal e um próspero Ano Novo para todos!
+
+Que 2026 seja repleto de conquistas e sucessos.
+
+Abraços,
+Equipe de Vendas
+"""
+
+3. Parabéns pelo trabalho:
+"""
+Pessoal,
+
+Parabéns pelo lançamento bem-sucedido do novo sistema! O projeto ficou excelente e todos os clientes estão elogiando.
+
+Valeu pelo esforço de todos!
+
+Grande abraço,
+Diretoria
+"""

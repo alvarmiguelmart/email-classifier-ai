@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📧 Email Classifier AI</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .badge {
+            display: inline-block;
+            background: rgba(255,255,255,0.2);
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            margin-top: 15px;
+            backdrop-filter: blur(10px);
+        }
+
+        .content {
+            padding: 40px 30px;
+        }
+
+        .input-section {
+            margin-bottom: 30px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .tab {
+            padding: 12px 24px;
+            border: 2px solid #e0e0e0;
+            background: white;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            color: #666;
+        }
+
+        .tab.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .tab:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .input-area {
+            display: none;
+        }
+
+        .input-area.active {
+            display: block;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 200px;
+            padding: 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 15px;
+            font-size: 1em;
+            resize: vertical;
+            transition: border-color 0.3s;
+            font-family: inherit;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .file-upload {
+            border: 3px dashed #e0e0e0;
+            border-radius: 15px;
+            padding: 60px 20px;
+            text-align: center;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .file-upload:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+
+        .file-upload input[type="file"] {
+            display: none;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.1em;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-container {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .result {
+            display: none;
+            margin-top: 30px;
+            padding: 30px;
+            border-radius: 15px;
+            animation: slideIn 0.5s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .result.show {
+            display: block;
+        }
+
+        .result-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .result-icon {
+            font-size: 3em;
+        }
+
+        .result-title {
+            font-size: 1.5em;
+            font-weight: 700;
+        }
+
+        .confidence-bar {
+            background: rgba(0,0,0,0.1);
+            height: 10px;
+            border-radius: 5px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .confidence-fill {
+            height: 100%;
+            border-radius: 5px;
+            transition: width 0.5s ease;
+        }
+
+        .response-box {
+            background: #f8f9fa;
+            border-left: 4px solid;
+            padding: 20px;
+            border-radius: 0 10px 10px 0;
+            margin-top: 20px;
+        }
+
+        .response-title {
+            font-weight: 700;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .tech-details {
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(0,0,0,0.05);
+            border-radius: 10px;
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #e0e0e0;
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .footer {
+            background: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .footer a {
+            color: #667eea;
+            text-decoration: none;
+        }
+
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .error.show {
+            display: block;
+        }
+
+        @media (max-width: 600px) {
+            .header h1 {
+                font-size: 1.8em;
+            }
+
+            .tabs {
+                flex-direction: column;
+            }
+
+            .content {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📧 Email Classifier AI</h1>
+            <p>Classificação inteligente de emails com Inteligência Artificial</p>
+            <span class="badge">🤖 DistilBERT • 66M parâmetros • 100% Gratuito</span>
+        </div>
+
+        <div class="content">
+            <div class="input-section">
+                <div class="tabs">
+                    <button class="tab active" onclick="switchTab('text')">📝 Digitar Texto</button>
+                    <button class="tab" onclick="switchTab('file')">📎 Anexar Arquivo</button>
+                </div>
+
+                <form id="classifyForm" enctype="multipart/form-data">
+                    <div id="textInput" class="input-area active">
+                        <textarea 
+                            name="text" 
+                            id="emailText"
+                            placeholder="Cole aqui o conteúdo do email que deseja classificar...
+
+Exemplo: Olá, gostaria de saber o status do meu pedido #12345. Está pendente há 3 dias e preciso urgente da entrega."></textarea>
+                    </div>
+
+                    <div id="fileInput" class="input-area">
+                        <label class="file-upload">
+                            <input type="file" name="file" id="emailFile" accept=".txt,.pdf,.docx">
+                            <div style="font-size: 3em; margin-bottom: 10px;">📁</div>
+                            <div style="font-weight: 600; color: #333; margin-bottom: 5px;">
+                                Clique para selecionar ou arraste o arquivo aqui
+                            </div>
+                            <div style="color: #999; font-size: 0.9em;">
+                                Formatos suportados: .txt, .pdf, .docx
+                            </div>
+                        </label>
+                        <div id="fileName" style="margin-top: 10px; color: #667eea; font-weight: 600;"></div>
+                    </div>
+
+                    <div class="btn-container">
+                        <button type="submit" class="btn" id="submitBtn">
+                            🔍 Classificar Email
+                        </button>
+                    </div>
+                </form>
+
+                <div class="loading" id="loading">
+                    <div class="spinner"></div>
+                    <p>Analisando email com DistilBERT...</p>
+                </div>
+
+                <div class="error" id="error"></div>
+
+                <div class="result" id="result">
+                    <div class="result-header">
+                        <div class="result-icon" id="resultIcon">📋</div>
+                        <div>
+                            <div class="result-title" id="resultTitle">PRODUTIVO</div>
+                            <div style="color: #666; margin-top: 5px;" id="resultReason">Motivo da classificação</div>
+                        </div>
+                    </div>
+
+                    <div style="margin: 15px 0;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                            <span>Confiança da IA</span>
+                            <span id="confidenceValue">95%</span>
+                        </div>
+                        <div class="confidence-bar">
+                            <div class="confidence-fill" id="confidenceBar" style="width: 95%; background: #2563eb;"></div>
+                        </div>
+                    </div>
+
+                    <div class="response-box" id="responseBox" style="border-color: #2563eb;">
+                        <div class="response-title">
+                            💡 Resposta Automática Sugerida
+                        </div>
+                        <div id="responseText" style="line-height: 1.6; white-space: pre-line;"></div>
+                    </div>
+
+                    <div class="tech-details" id="techDetails">
+                        <strong>🔧 Detalhes Técnicos:</strong><br>
+                        Método: <span id="method"></span> | 
+                        BERT: <span id="bertPred"></span> | 
+                        Keywords: <span id="kwPred"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>Powered by <strong>DistilBERT</strong> • Hospedado gratuitamente em Hugging Face Spaces</p>
+            <p style="margin-top: 10px;">
+                <a href="https://github.com/seu-usuario/email-classifier" target="_blank">📂 GitHub</a> • 
+                <a href="https://huggingface.co/spaces/seu-usuario/email-classifier" target="_blank">🤗 Hugging Face</a>
+            </p>
+        </div>
+    </div>
+
+    <script>
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.input-area').forEach(a => a.classList.remove('active'));
+
+            if (tab === 'text') {
+                document.querySelectorAll('.tab')[0].classList.add('active');
+                document.getElementById('textInput').classList.add('active');
+            } else {
+                document.querySelectorAll('.tab')[1].classList.add('active');
+                document.getElementById('fileInput').classList.add('active');
+            }
+        }
+
+        document.getElementById('emailFile').addEventListener('change', function(e) {
+            const fileName = e.target.files[0]?.name;
+            document.getElementById('fileName').textContent = fileName ? `📄 ${fileName}` : '';
+        });
+
+        document.getElementById('classifyForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const submitBtn = document.getElementById('submitBtn');
+            const loading = document.getElementById('loading');
+            const result = document.getElementById('result');
+            const error = document.getElementById('error');
+
+            submitBtn.disabled = true;
+            loading.classList.add('show');
+            result.classList.remove('show');
+            error.classList.remove('show');
+
+            const formData = new FormData();
+            const text = document.getElementById('emailText').value;
+            const file = document.getElementById('emailFile').files[0];
+
+            if (text) formData.append('text', text);
+            if (file) formData.append('file', file);
+
+            try {
+                const response = await fetch('/classify', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    document.getElementById('resultIcon').textContent = data.icone;
+                    document.getElementById('resultTitle').textContent = data.label;
+                    document.getElementById('resultTitle').style.color = data.cor;
+                    document.getElementById('resultReason').textContent = data.motivo;
+                    document.getElementById('confidenceValue').textContent = Math.round(data.confianca * 100) + '%';
+                    document.getElementById('confidenceBar').style.width = (data.confianca * 100) + '%';
+                    document.getElementById('confidenceBar').style.background = data.cor;
+                    document.getElementById('responseBox').style.borderColor = data.cor;
+                    document.getElementById('responseText').innerHTML = data.resposta_html;
+                    document.getElementById('method').textContent = data.detalhes_tecnicos.metodo;
+                    document.getElementById('bertPred').textContent = data.detalhes_tecnicos.bert_pred;
+                    document.getElementById('kwPred').textContent = data.detalhes_tecnicos.kw_pred;
+
+                    result.classList.add('show');
+                    result.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                } else {
+                    error.textContent = data.error || 'Erro ao classificar email';
+                    error.classList.add('show');
+                }
+            } catch (err) {
+                error.textContent = 'Erro de conexão. Tente novamente.';
+                error.classList.add('show');
+            }
+
+            submitBtn.disabled = false;
+            loading.classList.remove('show');
+        });
+    </script>
+</body>
+</html>
